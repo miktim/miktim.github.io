@@ -1,10 +1,10 @@
 # LiteRadar tracker rev 191104 by miktim@mail.ru
 
 Run demo (the wonderful ideal world): 
-  https://miktim.github.io/literadar/tracker?mode=demo,nowatch&track=30
+  https://miktim.github.io/literadar-tracker?mode=demo,nowatch&track=30
 
 Run tracker:
-  https://miktim.github.io/literadar/tracker?watch=180:30:t&track=30
+  https://miktim.github.io/literadar-tracker?watch=180:30:t&track=30
 
 URL query parameters (defaults may vary, see tracker.js):
   mode  (mode=watch)
