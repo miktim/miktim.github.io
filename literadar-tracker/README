@@ -1,0 +1,26 @@
+# LiteRadar tracker rev 191104 by miktim@mail.ru
+
+Run demo (the wonderful ideal world): 
+  https://miktim.github.io/literadar/tracker?mode=demo,nowatch&track=30
+
+Run tracker:
+  https://miktim.github.io/literadar/tracker?watch=180:30:t&track=30
+
+URL query parameters (defaults may vary, see tracker.js):
+  mode  (mode=watch)
+    watch   - watch your location;
+    nowatch - disable watching your own location;
+    demo    - run demo.
+
+  watch (watch=180:30:t)
+    watch_timeout(sec):watch_maximumAge(sec):watch_high_accuracy(t/f)
+    See: https://w3c.github.io/geolocation-api/#dom-positionoptions
+
+  track (track=30)
+    minimal_track_segment_length(m)
+        track_segment_length = minimal_track_segment_length x speed
+
+  ws (ws=undefined) for embedded solutions
+    WebSocket server address:port
+    Note: WebSocket protocol depends on page protocol: http - ws,  https - wss.
+    Example: ws=localhost:10090
