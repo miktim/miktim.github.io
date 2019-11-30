@@ -34,12 +34,14 @@
 .tracker-console-message{
     padding: 0px 10px
 }
-.tracker-find-pane{
+.tracker-search-pane{
     position:absolute;
     top: 3px;
     right: 50px;
+    border-radius: 5px;
+    border: 2px solid black;
 }
-.tracker-find-field{
+.tracker-search-field{
     width: 150px; 
     padding: 0px 10px;
     font-weight: bold;
@@ -56,19 +58,9 @@ div.tracker-button{
     border: 1px solid black;
 }
 
-img.tracker-button-checker{
-    position:relative;
-    z-index: 2;
-    margin-left: -18px;
-    margin-bottom: -15px; 
-    width: 18px; 
-    height: 18px;
-    /*    cursor: pointer;*/
-}
-
 img.tracker-button{
     position:relative;
-    z-index: 1;
+    z-index: 2;
     -webkit-filter: invert(1);
     filter: invert(1);
     margin-left: 2px;
@@ -78,3 +70,14 @@ img.tracker-button{
     vertical-align: middle;
     cursor: pointer;
 }
+
+img.tracker-button-checker{
+    position:relative;
+    z-index: 3;
+    margin-left: -18px;
+    margin-bottom: -15px; 
+    width: 18px; 
+    height: 18px;
+    /*    cursor: pointer;*/
+}
+
