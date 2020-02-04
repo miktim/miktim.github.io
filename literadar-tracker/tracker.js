@@ -1,6 +1,5 @@
 /* 
- * LiteRadar tracker rev 191104
- * (c) 2019 miktim@mail.ru CC-BY-SA
+ * LiteRadar tracker CC-BY-SA (c) 2019-2020 miktim@mail.ru
  * leaflet 1.0.1+ required
  */
 
@@ -9,17 +8,20 @@
         version: '0.0.1',
         isSmallScreen: (screen.width > 500) ? false : true,
         options: {
-            mode: '', // [watch], nowatch, demo
-            ws: '', // websocket address
-            minDistance: 30 // meters (minimal track segment length)
-        },
-        watchOptions: {
-            timeout: 180000, // ms
-            maximumAge: 30000, // ms
-            enableHighAccuracy: true
+            mode: 'watch', // watch, nowatch, demo
+            ws: '', // websocket address:port
+            watch: {
+                timeout: 180000, // milliseconds
+                maximumAge: 120000, // milliseconds
+                enableHighAccuracy: true
+            },
+            track: {
+                minDistance: 20, // minimal track segment length (meters)
+                multiplier: 0.5
+            }
         },
         locale: {
-            itsmeId: "It's me."
+            itsmeId: 'Own'
         },
         locations: [],
         icons: {},
@@ -33,20 +35,25 @@
         return obj;
     };
     T.parseOptions = function(opt) {
-        this.update(T.options, opt); // mode,ws
+        T.options.mode = opt.mode;
+        T.options.ws = opt.ws;
         if ('watch' in opt) {
             var val = (opt.watch + '::').split(':');
             if (parseInt(val[0]))
-                this.watchOptions.timeout = parseInt(val[0]) * 1000;
-            if (parseInt(val[1]))
-                this.watchOptions.maximumAge = parseInt(val[1]) * 1000;
+                this.options.watch.timeout = parseInt(val[0]) * 1000;
+            if (parseFloat(val[1])) // Infinity
+                this.options.watch.maximumAge = parseFloat(val[1]) * 1000;
             if (val[2] === 't')
-                this.watchOptions.enableHighAccuracy = true;
+                this.options.watch.enableHighAccuracy = true;
             if (val[2] === 'f')
-                this.watchOptions.enableHighAccuracy = false;
+                this.options.watch.enableHighAccuracy = false;
         }
-        if ('track' in opt && parseInt(opt.track)) {
-            this.options.minDistance = parseInt(opt.track);
+        if ('track' in opt) {
+            var val = (opt.track + ':').split(':');
+            if (parseInt(val[0]))
+                this.options.track.minDistance = parseInt(val[0]);
+            if (parseFloat(val[1]))
+                this.options.track.multiplier = parseFloat(val[1]);
         }
     };
     T.latLng = function(obj) {
@@ -66,46 +73,69 @@
     };
     T.icons.own = T.makeIcon("./images/phone_y.png");
     T.icons.active = T.makeIcon("./images/phone_b.png");
+// https://www.w3.org/TR/wake-lock/
+// https://web.dev/wakelock/
+    T.WakeLocker = function() {
+        this.wakeLock = null;
+        if ('getWakeLock' in navigator) {
+            var wlTypes = ['system', 'screen'];
+            for (var i = 0; i < 2; i++) {
+                try {
+                    this.wakeLock = navigator.getWakeLock(wlTypes[i]);
+                    break;
+                } catch (e) {
+                    console.log(e.message);
+                }
+            }
+        } else {
+            console.log('WakeLock API not supported');
+// https://github.com/richtr/NoSleep.js            
+            return new NoSleep();
+        }
+        this.request = null;
+        this.createRequest = function() {
+            if (this.wakeLock && document.visibilityState === 'visible')
+                this.request = this.wakeLock.createRequest();
+        };
+// https://stackoverflow.com/questions/1338599/the-value-of-this-within-the-handler-using-addeventlistener
+        this.handleEvent = function(e) {
+            if (e.type === 'visibilitychange' || e.type === 'fullscreenchange')
+                this.createRequest();
+        };
+        this.enable = function() {
+            document.addEventListener('visibilitychange', this);
+            document.addEventListener('fullscreenchange', this);
+            this.createRequest();
+        };
+        this.disable = function() {
+            if (this.wakeLocker.request) {
+                document.removeEventListener('visibilitychange', this);
+                document.removeEventListener('fullscreenchange', this);
+                this.request.cancel();
+            }
+        };
+    };
     T.Location = function() {
         this.id = ''; // unique source id (string)
         this.itsme = false; // is own location
-        this.latlng = undefined; // {lat, lng} WGS84
-        this.accuracy = NaN; // meters (radius)
-        this.speed = NaN; // meters per second
-        this.altitude = NaN; // meters
-        this.heading = NaN; // degrees counting clockwise from true North
-        this.timestamp = NaN; // acquired time in milliseconds
-        this.timeout = NaN; // lifetime in milliseconds?
-    };
-    T.onLocationFound = function(l) {
-        var loc = new T.Location();
-        T.update(loc, T.latLng(l.coords));
-        loc.id = T.locale.itsmeId;
-        loc.itsme = true;
-        loc.timestamp = l.timestamp;
-        loc.timeout = T.watchOptions.timeout;
-        T.onLocation(loc);
-    };
-    T.onLocationError = function(e) {
-        e.message = 'Geolocation: ' + e.message;
-        console.log(e.message);
-        T.map.consolePane.log(e.message);
+        this.latlng = undefined; // {lat, lng, alt?} WGS84
+        this.accuracy = null; // meters (radius)
+        this.speed = null; // meters per second
+        this.altitude = null; // meters
+        this.altitudeAccuracy = null; // meters
+        this.heading = null; // degrees counting clockwise from true North
+        this.timestamp = null; // acquired time in milliseconds
+        this.timeout = null; // lifetime in milliseconds?
     };
 // https://w3c.github.io/geolocation-api/
 // leaflet.src.js section Geolocation methods
-    T.geoLocator = {
-        watchId: undefined,
-        /*        
-         lastLocation: undefined,
-         locations: [],
-         onLocationFound: undefined,
-         inFree: false,
-         */
-        start: function(onFound, onError, options) {
+    T.locationWatcher = new function() {
+        this.watchId = undefined;
+        this.start = function(onFound, onError, options) {
             if (!('geolocation' in navigator)) {
                 onError({
                     code: 0,
-                    message: 'Geolocaton: not supported.'
+                    message: 'Geolocaton API not supported.'
                 });
                 return;
             }
@@ -115,47 +145,73 @@
             this.isFree = true;
             this.locations = [];
             this.onLocationFound = onFound;
+            var lw = this;
             this.watchId = navigator.geolocation.watchPosition(
                     function(l) {
-                        var gl = T.geoLocator;
-                        if (!gl.lastLocation) {
-                            gl.lastLocation = l;
-                            gl.onLocationFound(l);
-                        } else {
-                            gl.locations.push(l);
-                            if (gl.locations.length > 2 && gl.isFree) {
-                                gl.isFree = false;
-                                var distance = Number.MAX_VALUE, d,
-                                        nextLocation, bestLocation;
-                                var lastLatLng = L.latLng(
-                                        gl.lastLocation.coords.latitude,
-                                        gl.lastLocation.coords.longitude);
-                                while (gl.locations.length > 0) {
-                                    nextLocation = gl.locations.pop();
-                                    d = lastLatLng.distanceTo(L.latLng(
-                                            nextLocation.coords.latitude,
-                                            nextLocation.coords.longitude));
-                                    if (d < distance) {
-                                        distance = d;
-                                        bestLocation = nextLocation;
-                                    }
-                                }
-                                gl.lastLocation = bestLocation;
-                                gl.onLocationFound(bestLocation);
-                                gl.isFree = true;
-                            }
+
+                        if (!lw.lastLocation || lw.lastLocation.timestamp < l.timestamp) {
+                            lw.lastLocation = l;
+                            lw.onLocationFound(l);
                         }
 
+                        /*                        
+                         if (!lw.lastLocation) {
+                         lw.lastLocation = l;
+                         lw.locations.push(l);
+                         lw.onLocationFound(l);
+                         } else {
+                         //                            if (lw.lastLocation.timestamp > l.timestamp) return;
+                         
+                         lw.locations.push(l);
+                         if (lw.locations.length > 2 && lw.isFree) {
+                         lw.isFree = false;
+                         // centroid
+                         var lat = 0, lng = 0, alt = 0, acc = 0, tme = 0
+                         , nextLocation;
+                         for (var i = 0; i < 3; i++) {
+                         nextLocation = lw.locations.shift();
+                         lat += nextLocation.coords.latitude;
+                         lng += nextLocation.coords.longitude;
+                         acc = Math.max(acc, nextLocation.coords.accuracy);
+                         alt += nextLocation.coords.altitude;
+                         tme = Math.max(tme, nextLocation.timestamp);
+                         }
+                         nextLocation.coords.latitude = lat / 3;
+                         nextLocation.coords.longitude = lng / 3;
+                         nextLocation.coords.altitude = alt / 3;
+                         nextLocation.coords.accuracy = acc;
+                         nextLocation.timestamp = tme; //Date.now();
+                         //                                nextlocation.coords.heading =
+                         //                                nextlocation.coords.speed =
+                         //                                nextlocation.coords.altitudeAccuracy =
+                         lw.lastLocation = nextLocation;
+                         lw.isFree = true;
+                         }
+                         lw.onLocationFound(lw.lastLocation);
+                         }
+                         */
                     }, onError, options);
-
-        },
-        stop: function() {
+        };
+        this.stop = function() {
             if (this.watchId) {
                 navigator.geolocation.clearWatch(this.watchId);
                 this.watchId = undefined;
             }
-        }
-
+        };
+    };
+    T.onLocationFound = function(l) {
+        var loc = new T.Location();
+        T.update(loc, T.latLng(l.coords));
+        loc.id = T.locale.itsmeId;
+        loc.itsme = true;
+        loc.timestamp = l.timestamp;
+        loc.timeout = T.options.watch.timeout;
+        T.onLocation(loc);
+    };
+    T.onLocationError = function(e) {
+        e.message = 'Geolocation: ' + e.message;
+        console.log(e.message);
+        T.map.ui.consolePane.log(e.message);
     };
     T.onLocation = function(loc) {
         if (!this.map.isLoaded && this.locations.length === 0)
@@ -165,11 +221,22 @@
         }
         this.map.setMarker(loc);
     };
-    T.onMessage = function(m) {
-        var obj = JSON.parse(m);
-        if (obj.action === "location") {
-            this.onLocation(obj);
+    T.actions = [];
+    T.actions['location'] = function(a) {
+        T.onLocation(a);
+    };
+    T.actions['message'] = function(a) {
+        T.map.ui.consolePane.log(a.message);
+    };
+    T.onAction = function(actionObj) {
+        var action = T.actions[actionObj.action];
+        if (action) {
+            action(actionObj);
         }
+    };
+    T.onJSONmessage = function(m) {
+        var actionObj = JSON.parse(m);
+        T.onAction(actionObj);
     };
     T.checkWebSocket = function() {
         if (this.options.ws) {
@@ -177,10 +244,12 @@
                     'wss://' : 'ws://') + this.options.ws;
 //            var wsurl = 'wss://' + this.search.ws;
             try {
+                if ('webSocket' in T)
+                    T.webSocket.close();
                 T.webSocket = new WebSocket(wsurl);
-                T.webSocket.onmessage = T.onMessage;
+                T.webSocket.onmessage = T.onJSONmessage;
                 T.webSocket.onopen = function(e) {
-                    T.sendMessage = function(m) {
+                    T.sendJSONmessage = function(m) {
                         T.webSocket.send(m);
                     };
                     console.log('WebSocket open');
@@ -189,7 +258,7 @@
                     console.log("WebSocket close");
                 };
                 T.webSocket.onerror = function(e) {
-                    T.map.consolePane.log(e.message);
+                    T.map.ui.consolePane.log(e.message);
                     console.log(e.message);
                 };
             } catch (e) {
@@ -197,28 +266,28 @@
             }
         }
     };
-    T.testMode = function(mode) {
+    T.checkMode = function(mode) {
         return ((new RegExp('(^|,)' + mode + '(,|$)', 'i')).test(this.options.mode));
     };
     T.checkWatchMode = function() {
-        if (!this.testMode('nowatch')) {
-//            this.watchLocation(
-            this.geoLocator.start(
+        if (!this.checkMode('nowatch')) {
+            this.locationWatcher.start(
                     T.onLocationFound,
                     T.onLocationError,
-                    T.watchOptions);
-            if ('getWakeLock' in navigator) {
-                navigator.getWakeLock("screen").then(function(wakeLock) {
-                    T.wakeLockRequest = wakeLock.createRequest();
-                });
-            } else {
-                T.map.consolePane.log('WakeLock not allowed');
-            }
+                    T.options.watch);
+            T.noSleep = new T.WakeLocker();
+        } else {
+            T.noSleep = {
+                enable: function() {
+                },
+                disable: function() {
+                }
+            };
         }
     };
     T.checkDemoMode = function(latlng) {
-        if (this.testMode('demo'))
-            this.demo.run(5000, latlng);
+        if (this.checkMode('demo'))
+            this.demo.start(5000, latlng);
     };
     T.expirationTimer;
     T.checkExpiredLocations = function() {
@@ -228,28 +297,45 @@
                     if (T.locations[id].timestamp + T.locations[id].timeout < Date.now())
                         T.map.setMarkerOpacity(T.locations[id], 0.4);
                 }
-            }, Math.max(60000, T.watchOptions.timeout));
+            }, 60000);
         }
     };
-    T.run = function(opts, mapId, latlng) {
+    T.start = function(opts, mapId, latlng) {
         this.parseOptions(opts);
-        this.map = this._map(mapId).load(latlng);
+        this.map = T._ui.addTo(this._map(mapId)).load(latlng);
+        this.map.once('locationfound', function(e) {
+            T.checkDemoMode(e.latlng);
+        });
+        this.map.once('locationerror', function(e) {
+            T.checkDemoMode();
+        });
         this.checkWebSocket();
         this.checkWatchMode();
         this.checkExpiredLocations();
+        window.addEventListener('unload', T.stop);
+    };
+    T.stop = function() {
+        T.locationWatcher.stop();
+        if ('webSocket' in T)
+            T.webSocket.close();
+        clearTimeout(T.expirationTimer);
+        T.noSleep.disable();
+        T.demo.stop();
     };
     T._map = function(mapId, latlng) {
         var map = L.map(mapId, {
-            minZoom: 5,
+            minZoom: 8,
             zoom: 17,
             zoomControl: false
         });
         L.tileLayer(window.location.protocol + '//{s}.tile.osm.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
-        T.UI.addTo(map);
+        map.ui = {}; // user interface
         map.isLoaded = false;
-        map.accuracyLayer = L.featureGroup(); // markers accuracy
+        map.markerLayer = L.featureGroup(); // markers
+        map.addLayer(map.markerLayer);
+        map.accuracyLayer = L.featureGroup(); // markers accuracy circles
         map.addLayer(map.accuracyLayer);
         map.showAccuracy = true;
         map.toggleAccuracy = function() {
@@ -266,90 +352,6 @@
             return this.showAccuracy;
         };
         map.markers = [];
-        map.boundMarkers = function() {
-            var latLngs = [];
-            for (var m in this.markers) {
-                latLngs.push(this.markers[m].getLatLng());
-            }
-            if (latLngs.length > 0) {
-                var bounds = L.latLngBounds(latLngs);
-                this.fitBounds(bounds);
-                this.setView(bounds.getCenter());
-            }
-        };
-        map.track = {
-            marker: undefined,
-            pathLayer: undefined, // polyline
-            accuracyLayer: L.featureGroup(), // track nodes accuracy
-            pathLength: 0,
-            lastLocation: undefined,
-            rubberThread: undefined
-        };
-        map.track.init = function(map) {
-            if (map.hasLayer(this.accuracyLayer)) {
-                map.removeLayer(this.accuracyLayer);
-            }
-            if (map.hasLayer(this.pathLayer)) {
-                map.removeLayer(this.pathLayer);
-            }
-            this.pathLayer = L.polyline([], {weight: 2, color: "red"}).addTo(map);
-            this.accuracyLayer = L.featureGroup();
-            if (map.showAccuracy)
-                map.addLayer(this.accuracyLayer);
-            this.pathLength = 0;
-            this.lastLocation = undefined;
-        };
-        map.onMarkerClick = function(e) {
-            var id = e.target.options.alt;
-            var marker = this.markers[id];
-            if (this.track.marker === marker) {
-                this.track.marker = undefined;
-                if (this.infoPane)
-                    this.infoPane.remove(); // removeFrom(this); //0.7.0
-            } else {
-                this.track.init(this);
-                this.track.started = marker.location.timestamp;
-                if (!this.infoPane)
-                    T.UI.infoPane.addTo(this);
-                this.track.marker = marker;
-                this.trackMarker(marker);
-            }
-        };
-        map.trackMarker = function(marker) {
-            if (this.track.marker === marker) {
-                var pos = marker.getLatLng();
-                var dst = 0;
-                var step = T.options.minDistance;
-                if (this.track.lastLocation) {
-// flat distance() leaflet 1.0.1+                  
-                    dst = this.distance(pos, this.track.lastLocation.latlng);
-                    step = Math.max(T.options.minDistance,
-                            T.options.minDistance * marker.location.speed);
-                }
-                if (!this.track.lastLocation || dst >= step) {
-// ???check location 'jump' (dead zone?)
-                    this.track.lastLocation = marker.location;
-                    this.track.pathLayer.addLatLng(pos);
-                    L.circle(pos, marker.accuracyCircle.getRadius(),
-                            {weight: 1, color: "blue"}).addTo(this.track.accuracyLayer);
-                    this.track.pathLength += dst;
-                } else {
-//                    if(this.track.rubberThread) this.track.rubberThread.removeFrom()
-                }
-                this.setView(pos, this.getZoom());
-                this.infoPane.update({
-                    id: marker.location.id,
-                    trackLength: this.track.pathLength,
-                    trackTime: marker.location.timestamp - this.track.started,
-                    movement: dst,
-                    timestamp: marker.location.timestamp,
-                    speed: marker.location.speed,
-                    altitude: marker.location.altitude,
-                    heading: marker.location.heading,
-                    accuracy: marker.location.accuracy
-                });
-            }
-        };
         map.setMarkerOpacity = function(loc, opacity) {
             var marker = this.markers[loc.id];
             if (marker)
@@ -359,11 +361,11 @@
             icon = icon || (loc.itsme ? T.icons.own : T.icons.active);
             var marker = this.markers[loc.id];
             if (!marker) {
-                marker = L.marker(loc.latlng, {icon: icon, alt: loc.id});
+                marker = L.marker(loc.latlng, {icon: icon, alt: loc.id, title: loc.id});
                 marker.on('click', function(e) {
                     map.onMarkerClick(e);
                 });
-                marker.addTo(this);
+                marker.addTo(this.markerLayer);
                 marker.accuracyCircle = L.circle(loc.latlng, loc.accuracy,
                         {weight: 1, color: "blue"}).addTo(this.accuracyLayer);
                 this.markers[loc.id] = marker;
@@ -372,23 +374,145 @@
                 marker.accuracyCircle.setLatLng(loc.latlng);
                 marker.accuracyCircle.setRadius(loc.accuracy);
                 marker.setOpacity(1);
-                this.trackMarker(marker);
             }
             marker.location = loc;
+            this.trackMarker(marker);
             return marker;
         };
+        map.searchMarkersById = function(pattern) { // markers or geofences
+//            if (!'replaceAll' in String)  // javascript v8
+// https://stackoverflow.com/questions/1144783/how-to-replace-all-occurrences-of-a-string
+            String.prototype.replaceAll =
+                    function(f, r) {
+                        return this.split(f).join(r);
+                    };
+            pattern = '^' + pattern.replaceAll('?', '.{1}')
+                    .replaceAll('*', '.*') + '$';
+            var list = [];
+            try {// mask regexp {}.[] etc symbols
+                var rex = new RegExp(pattern, 'i');
+            } catch (e) {
+                console.log(e.message);
+                return list;
+            }
+            for (var key in map.markers) { // 
+                if (rex.test(key)) {
+                    list[key] = map.markers[key];
+                }
+            }
+            return list;
+        };
+        map.boundMarkers = function() {
+            if (this.hasLayer(this.accuracyLayer))
+                var bounds = this.accuracyLayer.getBounds();
+            else
+                var bounds = this.markerLayer.getBounds();
+            this.fitBounds(bounds);
+        };
+        map.onMarkerClick = function(e) {
+            var id = e.target.options.alt;
+            var marker = this.markers[id];
+            this.startTrack(marker);
+        };
+        map.track = {
+            marker: undefined,
+            pathLayer: undefined, // polyline
+            rubberThread: undefined, //
+            accuracyLayer: L.featureGroup(), // track nodes accuracy circles
+            pathLength: 0,
+            lastLocation: undefined
+        };
+        map.track.init = function(map) {
+            if (map.hasLayer(this.accuracyLayer)) {
+                map.removeLayer(this.accuracyLayer);
+            }
+            if (map.hasLayer(this.pathLayer)) {
+                map.removeLayer(this.pathLayer);
+            }
+            if (map.hasLayer(this.rubberThread)) {
+                map.removeLayer(this.rubberThread);
+            }
+            this.pathLayer = L.polyline([], {weight: 2, color: "red"}).addTo(map);
+            this.rubberThread = L.polyline([], {weight: 2, color: "red"}).addTo(map);
+            this.accuracyLayer = L.featureGroup();
+            if (map.showAccuracy)
+                map.addLayer(this.accuracyLayer);
+            this.pathLength = 0;
+            this.lastLocation = undefined;
+        };
+        map.startTrack = function(marker) {
+            if (this.track.marker === marker) {
+                if (marker.location.itsme) {
+// disable noSleep 
+                    T.noSleep.disable();
+                    this.ui.consolePane.log('NoSleep OFF');
+                }
+                this.track.marker = undefined;
+                this.track.rubberThread.setLatLngs([]);
+//                if (this.ui.infoPane)
+//                    this.ui.infoPane.remove(); // removeFrom(this); //0.7.0
+
+            } else {
+                if (marker.location.itsme) {
+// enable noSleep 
+                    T.noSleep.enable();
+                    this.ui.consolePane.log('NoSleep ON');
+                }
+                /*                } else {
+                 // disable noSleep  
+                 T.noSleep.disable();
+                 }
+                 */
+                this.track.init(this);
+                this.track.started = marker.location.timestamp;
+                if (!this.ui.infoPane)
+                    this.ui.infoPaneCtl.addTo(this);
+                this.track.marker = marker;
+                this.trackMarker(marker);
+            }
+        };
+        map.trackMarker = function(marker) {
+            if (this.track.marker === marker) {
+                var dist = 0;
+                var step = T.options.track.minDistance;
+                if (this.track.lastLocation) {
+// flat distance() leaflet 1.0.1+                  
+                    dist = map.distance(marker.location.latlng, this.track.lastLocation.latlng);
+                    step = Math.max(step,
+                            step * T.options.track.multiplier
+                            * dist * 1000 / (marker.location.timestamp - this.track.lastLocation.timestamp));
+                }
+                if (!this.track.lastLocation || dist >= step) {
+// ???check location 'jump' (dead zone?)
+// replace nodes with heading deviation ~7 degree?
+                    this.track.lastLocation = marker.location;
+                    this.track.pathLayer.addLatLng(marker.location.latlng);
+                    L.circle(marker.location.latlng, marker.accuracyCircle.getRadius(),
+                            {weight: 1, color: "blue"}).addTo(this.track.accuracyLayer);
+                    this.track.pathLength += dist;
+                    this.track.rubberThread.setLatLngs([]);
+                } else {
+                    this.track.rubberThread.setLatLngs(
+                            [this.track.lastLocation.latlng, marker.location.latlng]);
+                }
+                this.setView(marker.location.latlng, this.getZoom());
+                this.ui.infoPane.update(L.Util.extend(marker.location, {
+                    trackLength: this.track.pathLength,
+                    trackTime: marker.location.timestamp - this.track.started,
+                    movement: dist
+                }));
+            }
+        };
         map.load = function(latlng) {
-            this.on('load', function(e) {
+            this.once('load', function(e) {
                 map.isLoaded = true;
             });
             this.on('locationfound', function(e) {
-                map.consolePane.log();
+                map.ui.consolePane.log();
                 map.setView(e.latlng, this.options.zoom);
-                T.checkDemoMode(e.latlng);
             });
             this.on('locationerror', function(e) {
-                T.checkDemoMode();
-                this.consolePane.log(e.message);
+                this.ui.consolePane.log(e.message);
                 console.log(e.message);
             });
             this.locateOwn(latlng);
@@ -398,22 +522,39 @@
             if (latlng)
                 this.setView(latlng, this.options.zoom);
             else {
-                this.consolePane.log('Expect location...', 240000);
+                this.ui.consolePane.log('Expect location...', 120000);
                 this.locate({setView: false}); // no load event
             }
             return this;
         };
         return map;
     };
-    T.UI = {
-        infoPane: new (L.Control.extend({
+    T._ui = {
+        infoPaneCtl: new (L.Control.extend({
             options: {
                 position: 'bottomleft',
-                infoData: {id: {nick: 'Track ', unit: ':'},
+                /* ????
+                 * infoData: { 
+                 * tables: [ 
+                 * { title: function(data) { return ('Track: ' + data.id);},
+                 *   style: [],
+                 *   rows: [
+                 *     ['DST', function(data) {return (Math.round(data.trackLength) +' m');}],
+                 *     ['TTM', function(data) {return ((new Date(data.trackTime)).toISOString()
+                 *                                   .substring(11, 19));}]
+                 *   ],
+                 * },
+                 * { title: 'Location:',
+                 *   styles: [],
+                 *   rows: [
+                 *   ]
+                 * }]},
+                 */
+                infoData: {id: {nick: 'Track: ', unit: ''},
                     trackLength: {nick: 'DST', unit: 'm'},
                     trackTime: {nick: 'TTM', unit: ''},
                     timestamp: {nick: 'TME', unit: ''},
-                    speed: {nick: 'SPD', unit: 'm/sec'},
+                    speed: {nick: 'SPD', unit: 'm/s'},
                     altitude: {nick: 'ALT', unit: 'm'},
                     movement: {nick: 'MVT', unit: 'm'},
                     heading: {nick: 'HDN', unit: '&deg'},
@@ -424,36 +565,35 @@
                 var pane = L.DomUtil.create('div', 'tracker-pane')
                         , tbl, tbl1, row, el;
                 pane.onclick = function(e) {
-                    var pane = map.infoPane.getContainer();
+                    var pane = map.ui.infoPane.getContainer();
                     if (!pane.style.marginLeft) {
-                        pane.style.marginLeft = '-120px';
+                        pane.style.marginLeft = '-100px';
                     } else {
-                        pane.style.marginLeft = "";
+                        pane.style.marginLeft = '';
                     }
                 };
-                el = L.DomUtil.create('div', 'tracker-info-header', pane);
+                el = L.DomUtil.create('div', 'tracker-title', pane);
                 this.options.infoData.id.element = el;
-                tbl = L.DomUtil.create('table', 'tracker-info-table', pane);
-                el = L.DomUtil.create('div', 'tracker-info-header', pane);
+                tbl = L.DomUtil.create('table', 'tracker-table', pane);
+                el = L.DomUtil.create('div', 'tracker-title', pane);
                 el.innerHTML = 'Location:';
-                tbl1 = L.DomUtil.create('table', 'tracker-info-table', pane);
+                tbl1 = L.DomUtil.create('table', 'tracker-table', pane);
                 for (var key in this.options.infoData) {
                     if (key === 'id')
                         continue;
                     if (key === 'timestamp')
                         tbl = tbl1;
-                    row = L.DomUtil.create('tr', 'tracker-info-row', tbl);
+                    row = L.DomUtil.create('tr', 'tracker-row', tbl);
                     el = L.DomUtil.create('td', 'tracker-info-nick', row);
                     el.innerHTML = this.options.infoData[key].nick;
                     el = L.DomUtil.create('td', 'tracker-info-value', row);
                     this.options.infoData[key].element = el;
                 }
-
-                map.infoPane = this;
+                map.ui.infoPane = this;
                 return pane;
             },
             onRemove: function(map) {
-                delete map.infoPane;
+                delete map.ui.infoPane;
             },
             update: function(info) {
                 for (var key in this.options.infoData) {
@@ -480,50 +620,150 @@
                 }
             }
         })),
-        consolePane: new (L.Control.extend({
-            options: {position: 'bottomright', element: undefined},
+        consolePaneCtl: new (L.Control.extend({
+            options: {position: 'bottomright', timer: null},
             onAdd: function(map) {
-                var pane = L.DomUtil.create('div', 'tracker-pane');
-                this.options.element = pane;
-                L.DomUtil.create('div', 'tracker-console-message', pane);
+                var pane = L.DomUtil.create('div', 'tracker-console');
                 pane.hidden = true;
-                map.consolePane = this;
+                map.ui.consolePane = this;
                 return pane;
             },
             onRemove: function(map) {
-                delete map.consolePane;
+                delete map.ui.consolePane;
             },
             log: function(m, timeout) {
+                var pane = this.getContainer();
                 if (m) {
-                    this.options.element.childNodes[0].innerHTML =
-                            (new Date()).toTimeString().substring(0, 8)
+                    pane.innerHTML = (new Date()).toTimeString().substring(0, 8)
                             + ' ' + m;
-                    this.options.element.hidden = false;
-                    timeout = timeout ? timeout : 10000;
-                    this.options.timer = setTimeout(function(e) {
-                        e.hidden = true;
-                    }, timeout, this.options.element);
+                    pane.hidden = false;
+                    timeout = timeout || 10000;
+                    if (this.options.timer)
+                        clearTimeout(this.options.timer);
+                    this.options.timer = setTimeout(function(t) {
+                        t.getContainer().hidden = true;
+                        t.options.timer = null;
+                    }, timeout, this);
                 } else {
-                    this.options.element.hidden = true;
+                    pane.hidden = true;
                 }
             }
         })),
-        controlPane: new (L.Control.extend({
+        listPaneCtl: new (L.Control.extend({
+            options: {
+                position: 'topright'
+            },
+            onAdd: function(map) {
+                var isTouchDevice = function() {
+// https://stackoverflow.com/questions/4817029/whats-the-best-way-to-detect-a-touch-screen-device-using-javascript/4819886#4819886                    
+                    var prefixes = ' -webkit- -moz- -o- -ms- '.split(' ');
+                    var mq = function(query) {
+                        return window.matchMedia(query).matches;
+                    };
+                    if (('ontouchstart' in window) || window.DocumentTouch && document instanceof DocumentTouch) {
+                        return true;
+                    }
+                    // include the 'heartz' as a way to have a non matching MQ to help terminate the join
+                    // https://git.io/vznFH
+                    var query = ['(', prefixes.join('touch-enabled),('), 'heartz', ')'].join('');
+                    return mq(query);
+                };
+                var pane = L.DomUtil.create('div', 'tracker-pane')
+                        , tbl, row, el, list = map.searchList;
+                pane.onclick = function(e) {
+                    if (e.target.tagName === 'IMG') {
+                        var markerId = e.target.parentNode.parentNode.childNodes[2]
+                                .innerHTML;
+                        map.startTrack(map.markers[markerId]);
+                    }
+                    map.ui.listPane.remove();
+                };
+                var title = L.DomUtil.create('div', 'tracker-title', pane);
+                var scrollDiv = L.DomUtil.create('div', 'tracker-scroll', pane);
+// max-height on event orientationchange? deprecated! CSS?
+                var scrollHeight = function(el, dh) {
+                    var newHeight = ((window.innerHeight || document.documentElement.clientHeight) - 105) + 'px';
+                    if (newHeight !== el.style.maxHeight) {
+                        el.style.maxHeight = newHeight;
+                    }
+                };
+                scrollHeight(scrollDiv, 105);
+                this.options.timer = setInterval(scrollHeight
+                        , 500, scrollDiv, 105);
+                tbl = L.DomUtil.create('table', 'tracker-list', scrollDiv);
+                var imgStyle = isTouchDevice() ? 'tracker-button' : 'tracker-list';
+                var i = 0;
+                for (var key in list) {
+                    row = L.DomUtil.create('tr', 'tracker-list', tbl);
+                    el = L.DomUtil.create('td', 'tracker-list-img', row);
+                    var img = L.DomUtil.create('img', imgStyle, el);
+                    img.src = list[key].getIcon().options.iconUrl;
+                    i++;
+                    el = L.DomUtil.create('td', 'tracker-list', row);
+                    el.innerHTML = i.toString() 
+                            + (map.track.marker === list[key] ? '*' : '');
+                    el = L.DomUtil.create('td', 'tracker-list-id', row);
+                    el.innerHTML = key;
+                }
+                title.innerHTML = 'Found: ' + i;
+                map.ui.listPane = this;
+ L.DomEvent.disableClickPropagation(pane); 
+ L.DomEvent.disableScrollPropagation(pane); 
+                return pane;
+            },
+            onRemove: function(map) {
+                delete map.ui.listPane;
+                clearInterval(this.options.timer);
+            }
+        })),
+        buttonPaneCtl: new (L.Control.extend({
             options: {position: 'topright',
                 buttons: {
 // btnMenu: {img: './images/btn_menu.png', onclick: undefined},
                     btnSearch: {
+//                        searchCriteria: '', searchList: [],
                         img: './images/btn_search.png',
                         onclick: function(map) {
                             return (function(e) {
-                                map.boundMarkers();
+                                var frm = this.getElementsByClassName('tracker-search')[0];
+// var _this = map.ui.buttonPane.options.buttons.btnSearch                                           
+                                if (!frm) {
+                                    frm = L.DomUtil.create('form', 'tracker-search');
+                                    var inp = L.DomUtil.create('input', 'tracker-search', frm);
+                                    inp.type = 'text';
+                                    inp.name = 'searchCriteria';
+// inp.value = _this.searchCriteria;
+                                    frm.onsubmit = function() {
+                                        try {
+                                            map.searchList = map.searchMarkersById(this.searchCriteria.value);
+// _this.searchList =  map.searchMarkersById(this.searchCriteria.value);                                          
+                                            if (Object.keys(map.searchList).length !== 0) {
+// _this.searchCriteria =  this.searchCriteria.value;                                               
+                                                map.ui.listPaneCtl.addTo(map);
+                                            } else {
+                                                map.ui.consolePane.log('Nothing found');
+                                            }
+                                        } catch (e) {
+                                            console.log(e.message);
+                                        }
+                                        this.parentElement.removeChild(frm);
+                                        return false; // disable submit
+                                    };
+                                    this.insertBefore(frm, e.target);
+//                                    var inp = this.getElementsByClassName('tracker-search')[1];
+                                    inp.focus();
+                                    inp.scrollIntoView();
+                                } else {
+                                    if (e.target !== frm.searchCriteria)
+                                        frm.onsubmit(frm); //dispatchEvent(new Event('submit'));
+                                }
                             });
                         }},
                     btnAccuracy: {
                         img: './images/btn_accuracy.png',
                         onclick: function(map) {
                             return (function(e) {
-                                e.target.parentElement.childNodes[1].hidden = !map.toggleAccuracy();
+                                this.childNodes[1].hidden = !map.toggleAccuracy();
                             });
                         },
                         checked: true},
@@ -551,48 +791,30 @@
                     btn = L.DomUtil.create('img', 'tracker-button', div);
                     btn.src = this.options.buttons[key].img;
                     if (this.options.buttons[key].onclick)
-                        btn.onclick = this.options.buttons[key].onclick(map);
+                        div.onclick = this.options.buttons[key].onclick(map);
                     if ('checked' in this.options.buttons[key]) {
                         chk = L.DomUtil.create('img', 'tracker-button-checker', div);
                         chk.src = './images/btn_checker.png';
                         chk.hidden = !this.options.buttons[key].checked;
                     }
                 }
+                map.ui.buttonPane = this;
+ L.DomEvent.disableClickPropagation(pane); 
+ L.DomEvent.disableScrollPropagation(pane); 
                 return pane;
             },
             onRemove: function(map) {
-
-            }
-        })),
-        searchPane: new (L.Control.extend({
-            options: {position: 'topright',
-                element: undefined
-            },
-            onAdd: function(map) {
-                var pane = L.DomUtil.create('div', 'tracker-search-pane')
-                        , div, btn, fld;
-                this.options.element = pane;
-                div = L.DomUtil.create('input', 'tracker-search-field', pane);
-                map.searchPane = this;
-                return pane;
-            },
-            onRemove: function(map) {
-                delete map.searchPane;
+                delete map.ui.buttonPane;
             }
         })),
         addTo: function(map) {
-            this.consolePane.addTo(map);
-            this.controlPane.addTo(map);
-            this.searchPane.addTo(map);
+            this.buttonPaneCtl.addTo(map);
+            this.consolePaneCtl.addTo(map);
+            map.ui.infoPaneCtl = this.infoPaneCtl;
+            map.ui.listPaneCtl = this.listPaneCtl;
+            return map;
         }
     };
-
-    window.addEventListener("unload", function() {
-        T.geoLocator.stop();
-        if ('webSocket' in T)
-            T.webSocket.close();
-    });
-
     T.demo = {
         isRunning: false,
         demos: [],
@@ -620,10 +842,10 @@
             var λ2 = λ1 + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(φ1),
                     Math.cos(d / R) - Math.sin(φ1) * Math.sin(φ2));
             return {lat: φ2 / RpD, lng: ((λ2 / RpD) + 540) % 360 - 180};
-//???? latitude
+//???? heading - latitude
         },
         moveRandom: function(p) {
-            p.heading = this.randDbl(0, 180);
+            p.heading = (this.randInt(p.heading - 45, p.heading + 45) + 360) % 360;
             var dst = this.randDbl(10, 50);
             p.latlng = this.radialDistance(p.latlng, p.heading, dst);
             p.speed = dst / ((Date.now() - p.timestamp) / 1000); //meters per second
@@ -637,9 +859,9 @@
             }
         },
         sendDemo: function(d) {
-            T.onMessage(JSON.stringify(d));
+            T.onJSONmessage(JSON.stringify(d));
         },
-        run: function(delay, latlng) { // milliseconds, initial position
+        start: function(delay, latlng) { // milliseconds, initial position
             if (this.isRunning)
                 return;
             this.isRunning = true;
@@ -649,12 +871,18 @@
                 p.id = 'Demo ' + (i + 1);
                 p.timeout = delay;
                 p.latlng = latlng ? latlng : L.latLng(51.505, -0.09);
+                p.heading = this.randInt(0, 360);
                 this.demos[i] = this.moveRandom(p);
             }
             this.sendAllDemos();
-            setInterval(function(d) {
+            this.timer = setInterval(function(d) {
                 d.sendAllDemos();
             }, delay, this); //!IE9
+            T.onJSONmessage(JSON.stringify({action: 'message', message: 'DEMO started'}));
+        },
+        stop: function() {
+            if (this.timer)
+                clearTimeout(this.timer);
         }
     };
 }(window, document));

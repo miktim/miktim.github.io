@@ -1,8 +1,5 @@
 <!DOCTYPE html>
-<!--
-    LiteRadar tracker
-    (c) 2019 miktim@mail.ru CC-BY-SA
--->
+<!-- LiteRadar tracker CC-BY-SA (c) 2019-2020 miktim@mail.ru -->
 <html>
     <head>
         <title>LiteRadar tracker</title>
@@ -17,6 +14,8 @@
         <script src="./libs/leaflet1.5.1/leaflet.js"></script-->
         <link rel="stylesheet" href="./tracker.css">
         <script src="./tracker.min.js"></script>
+        <!-- https://github.com/richtr/NoSleep.js -->
+        <script src="./nosleep.min.js"></script>
     </head>
     <body>
         <div id="map" style="height: 100%; width: 100%; position: absolute; top:0; left:0"> 
@@ -36,7 +35,7 @@
                     console.log(e.message);
                 }
             }
-            T.run(options, 'map');
+            T.start(options, 'map');
         </script>
     </body>
 </html>

@@ -1,68 +1,101 @@
 /* 
- * LiteRadar tracker rev 191031
- * (c) 2019 miktim@mail.ru CC-BY-SA
+ * LiteRadar tracker rev 200201
+ * CC-BY-SA (c) 2019 miktim@mail.ru
  */
-.tracker-find-pane,
-.tracker-pane{
-    border: 2px solid darkgrey;
-    border-radius: 5px;
-    box-shadow: 0 0 2px grey;
-    background-color: black;
+.tracker-pane, .tracker-console{
+    /*    background-color: black;*/
     text-align: left;
     color: white;
     font-weight: bold;
     font: 15px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
 }
-.tracker-info-table{
+
+div.tracker-scroll {
+    display: block;
+    scroll-behavior: smooth;
+    overflow-y: auto;
+}
+table.tracker-table, table.tracker-list {
     table-layout: fixed;
     border-collapse: collapse;
 }
-.tracker-info-header{
+th.tracker-table, th.tracker-list {
+    white-space: nowrap;
+}
+tr.tracker-table, tr.tracker-list {
+    white-space: nowrap;
+}
+td.tracker-table, td.tracker-list {
+    background-color: black;
+    padding: 0px 5px;
+    border: 1px solid white;
+    /*    white-space: nowrap;*/
+    text-overflow: clip;
+}
+.tracker-table, .tracker-list{
+    /*    table-layout: fixed;*/
+    border-collapse: collapse;
+}
+.tracker-list-img{
+    border: 1px solid white;
+    padding: 0px 0px;
+}
+
+/**/
+div.tracker-title{
     background-color: darkgray;
     padding: 0px 5px;
+    text-overflow: ellipsis;
 }
 .tracker-info-nick{
     width: 50px; 
+    background-color: black;
     border: 1px solid white;
     padding: 0px 5px;
 } 
-.tracker-info-value{
-    width: 80px; 
+.tracker-info-value,.tracker-list-id{
+    width: 70px; 
+    background-color: black;
     border: 1px solid white;
     padding: 0px 5px;
+    text-overflow: clip;
 }
-.tracker-console-message{
-    padding: 0px 10px
-}
-.tracker-search-pane{
-    position:absolute;
-    top: 3px;
-    right: 50px;
-    border-radius: 5px;
-    border: 2px solid black;
-}
-.tracker-search-field{
-    width: 150px; 
+/**/
+.tracker-console{
+    background-color: black;
+    border: 1px solid white;
     padding: 0px 10px;
+}
+
+.tracker-search{
+    border: 1px solid black;
+}
+form.tracker-search{
+    display: inline-block;
+    padding-left: 4px;
+}
+input.tracker-search{
+    vertical-align: middle;
+    width: 100px; 
+    padding: 0 5px; 
+    background-color: white;
     font-weight: bold;
     font: 15px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
 }
+
 .tracker-button{
     padding: 0px;
     margin: 0px;
 }
 div.tracker-button{
-    margin-bottom:5px;
+    float: right;
+    margin-left: 5px;
     background-color: black;
-    border-radius: 5px;
+    /*    border-radius: 5px;*/
     border: 1px solid black;
+    cursor: pointer;
 }
-
-img.tracker-button{
-    position:relative;
-    z-index: 2;
-    -webkit-filter: invert(1);
-    filter: invert(1);
+img.tracker-button, img.tracker-list {
     margin-left: 2px;
     margin-right: 2px;
     width: 36px;
@@ -70,14 +103,14 @@ img.tracker-button{
     vertical-align: middle;
     cursor: pointer;
 }
-
+img.tracker-list{
+    width: 20px;
+    height: 20px;
+}
 img.tracker-button-checker{
-    position:relative;
-    z-index: 3;
     margin-left: -18px;
     margin-bottom: -15px; 
     width: 18px; 
     height: 18px;
-    /*    cursor: pointer;*/
 }
 
