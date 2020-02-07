@@ -7,7 +7,7 @@
     text-align: left;
     color: white;
     font-weight: bold;
-    font: 15px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font: 16px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
 }
 
 div.tracker-scroll {
@@ -77,10 +77,11 @@ form.tracker-search{
 input.tracker-search{
     vertical-align: middle;
     width: 100px; 
-    padding: 0 5px; 
+    padding: 0 5px; /* 0 5px */ 
     background-color: white;
     font-weight: bold;
-    font: 15px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font: 16px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif;
+    border: none;
 }
 
 .tracker-button{
@@ -95,6 +96,7 @@ div.tracker-button{
     border: 1px solid black;
     cursor: pointer;
 }
+
 img.tracker-button, img.tracker-list {
     margin-left: 2px;
     margin-right: 2px;
@@ -103,14 +105,15 @@ img.tracker-button, img.tracker-list {
     vertical-align: middle;
     cursor: pointer;
 }
+
 img.tracker-list{
     width: 20px;
     height: 20px;
 }
 img.tracker-button-checker{
-    margin-left: -18px;
+    margin-left: -22px; 
     margin-bottom: -15px; 
-    width: 18px; 
-    height: 18px;
+    width: 22px; 
+    height: 22px;
 }
 

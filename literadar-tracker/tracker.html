@@ -10,10 +10,8 @@
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"></script>
 
-        <!--link rel="stylesheet" href="./libs/leaflet1.5.1/leaflet.css">
-        <script src="./libs/leaflet1.5.1/leaflet.js"></script-->
         <link rel="stylesheet" href="./tracker.css">
-        <script src="./tracker.min.js"></script>
+        <script src="./tracker.js"></script>
         <!-- https://github.com/richtr/NoSleep.js -->
         <script src="./nosleep.min.js"></script>
     </head>
@@ -21,21 +19,8 @@
         <div id="map" style="height: 100%; width: 100%; position: absolute; top:0; left:0"> 
         </div>
         <script type="text/javascript">
-// ?mode=[watch]{demo}{,nowatch}{&ws=host:port}{&watch=timeout(sec):maxAge(sec):minDistance(meters)}
-            var options = {};
-            if (location.search) {
-                try {
-// https://stackoverflow.com/questions/8648892/convert-url-parameters-to-a-javascript-object
-                    var search = location.search.substring(1);
-                    options = JSON.parse('{"' + search.replace(/&/g, '","').replace(/=/g, '":"') + '"}',
-                            function(key, value) {
-                                return key === "" ? value : decodeURIComponent(value);
-                            });
-                } catch (e) {
-                    console.log(e.message);
-                }
-            }
-            T.start(options, 'map');
+            var options = {}; //see tracker.js T.options
+            T.start('map', options);
         </script>
     </body>
 </html>
