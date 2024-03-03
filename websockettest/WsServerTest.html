@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!--
+  WsServer test, MIT (c) 2020-2024 miktim@mail.ru
+-->
+<html>
+    <head>
+        <title>WsServer test</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        <div>WsServer test<br><br></div>
+        <!-- server throws error 1002 (Protocol Error) -->
+        <script src="http://localhost:8080/this_request_must_fail.js"></script>
+        <script>
+// see MDN: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
+            var testuri = 'ws://localhost:8080/test/';
+            var msg = 'Hello, Server! Привет, Сервер! ';
+            var lastMsgLength = 0;
+            var lastMsgStartEnd = '';
+            var testNo = 0;
+            var tests = [
+                'unknown WebSocket subprotocol (1006 expected)',
+                'closing WebSocket by browser (1000 expected)',
+                'closing WebSocket by server (1000 expected)',
+                'waiting message too big (1009 expected)',
+                'ping, waiting for server shutdown (1001 expected)'
+            ];
+            var expected = [1006,1000,1000,1009,1001];
+            var webSocket;
+            var subProtocols = ["superPooperChat"];//["superChat", "chat"];
+            try {
+                connectWs(testuri + "0");
+            } catch (e) {
+                show('Exception: ' + e.code + ' ' + e.message);
+            }
+            function show(msg) {
+                document.getElementsByTagName("div")[0]
+                        .insertAdjacentHTML('beforeend', msg + '<br>');
+            }
+            function connectWs(uri) {
+                if (testNo < tests.length)
+                    show('Test' + testNo + ': ' + tests[testNo]
+                            + " Requested subprotocols: " + subProtocols);
+                webSocket = new WebSocket(uri, subProtocols);
+                webSocket.onopen = event => {
+// WebSocket: .url .readyState .bufferedAmount .binaryType             
+                    show('onopen: ' + event.target.url + " Handshaked subprotocol: " + webSocket.protocol);
+                    event.target.send(msg);
+                };
+                webSocket.onmessage = event => {
+// event: .data .origin .lastEventId .source .ports
+
+                    var url = event.target.url;
+                    if (url.endsWith('1')) { // browser closure
+                        show('onmessage: ' + event.data);
+                        if (event.data.length < 80)
+                            event.target.send(event.data + event.data);
+                        else
+                            event.target.close(1000,"Closed by browser");
+                    } else if (url.endsWith('3')) { //message too big
+                        lastMsgLength = new Blob([event.data]).size;//event.data.length;
+                        lastMsgStartEnd =
+                                event.data.substring(0, 40) +
+                                ' ... ' +
+                                event.data.substring(event.data.length - 40);
+                        event.target.send(event.data + event.data);
+//                        event.data = null; //force free memory 
+                    } else {
+                        event.target.send(event.data);
+                    }
+                };
+                webSocket.onerror = event => {
+// event:                    
+                    show('onerror: no error info. WebSocket.bufferedAmount: ' + event.target.bufferedAmount);
+                };
+                webSocket.onclose = event => {
+// event: .code .reason .wasClean
+// see MDN: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
+                    if (event.target.url.endsWith("3")) {
+                        show((lastMsgLength * 2) + " bytes sent: " + lastMsgStartEnd);
+                    }
+                    show('onclose: ' + event.code
+                            + ':"' + event.reason
+                            + '":' + (event.wasClean ? 'clean':'dirty')
+                            + ':' + event.target.url + '<br>'
+                            + (event.code === expected[testNo] ? "OK" : "Failed!")
+                            + '<br>');
+
+                    subProtocols = subProtocols.concat(["chat", "superChat"]);
+                    subProtocols.unshift(subProtocols[2]); // rotate
+                    subProtocols.splice(3);
+
+                    if (++testNo < tests.length)
+                        connectWs(testuri + testNo);
+                    else
+                        show('Completed.');
+                };
+            }
+
+        </script>
+    </body>
+
+</html>
