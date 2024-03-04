@@ -15,10 +15,9 @@
         <script>
             var supportsWebSockets = 'WebSocket' in window || 'MozWebSocket' in window;
             if (!supportsWebSockets) {
-                alert('WebSocket is not supported!');
-//                show('WebSocket is not supported by this browser!<br><br>User agent: '
-//                        + navigator.userAgent );
-                throw new Error();;
+                show('WebSocket is not supported by this browser!<br><br>User agent: '
+                        + navigator.userAgent );
+                exit;
             }
 
 // see MDN: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
@@ -41,6 +40,11 @@
                 connectWs(testuri + "0");
             } catch (e) {
                 show('Exception: ' + e.code + ' ' + e.message);
+            }
+            function show(msg) {
+                document.getElementsByTagName("div")[0]
+                        .innerHTML += msg + '<br>';
+//                        .insertAdjacentHTML('beforeend', msg + '<br>');
             }
             function connectWs(uri) {
                 if (testNo < tests.length)
