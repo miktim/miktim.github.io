@@ -10,19 +10,15 @@
     </head>
     <body>
         <div>WsServer test<br><br></div>
-        <!-- When loading the script, the server should return error 1002 (Protocol Error) -->
+        <!-- When loading the script, the server should return error 1002 (protocol error) -->
         <!--script src="http://localhost:8080/this_request_must_fail.js"></script-->
         <script>
-            function show(msg) {
-                document.getElementsByTagName("div")[0]
-                        .innerHTML += msg + '<br>';
-//                        .insertAdjacentHTML('beforeend', msg + '<br>');
-            }
             var supportsWebSockets = 'WebSocket' in window || 'MozWebSocket' in window;
             if (!supportsWebSockets) {
-                show('WebSocket is not supported by this browser!<br><br>User agent: '
-                        + navigator.userAgent );
-                exit;
+                alert('WebSocket is not supported!');
+//                show('WebSocket is not supported by this browser!<br><br>User agent: '
+//                        + navigator.userAgent );
+                throw new Error();;
             }
 
 // see MDN: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
