@@ -15,8 +15,8 @@
         <script>
             var supportsWebSockets = 'WebSocket' in window || 'MozWebSocket' in window;
             if (!supportsWebSockets) {
-                alert('WebSocket is not supported by this browser!\r\nUser agent: '
-                        + navigator.userAgent );
+                show('WebSocket is not supported!<br>User agent: '
+                        + navigator.userAgent + '<br>');
             }
 
 // see MDN: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
