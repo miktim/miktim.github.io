@@ -22,7 +22,7 @@
         <script>
             if('MozWebSocket' in window) window.WebSocket = MozWebSocket;
             if (!('endsWith' in String)) {
-                String.endsWith = function (searchStr, endPos) {
+                String.prototype.endsWith = function (searchStr, endPos) {
                     endPos = endPos || this.length;
                     return this.substring(endPos - searchStr.length, searchStr.length) === searchStr;
                 };
