@@ -20,6 +20,7 @@
         <!-- When loading the script, the server should return error 1002 (protocol error) -->
         <script src="http://localhost:8080/this_request_must_fail.js"></script>
         <script>
+            if('MozWebSocket' in window) window.WebSocket = MozWebSocket;
             if (!('endsWith' in String)) {
                 String.endsWith = function (searchStr, endPos) {
                     endPos = endPos || this.length;
