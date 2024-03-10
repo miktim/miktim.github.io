@@ -24,7 +24,7 @@
             if (!('endsWith' in String)) {
                 String.prototype.endsWith = function (searchStr, endPos) {
                     endPos = endPos || this.length;
-                    return this.substring(endPos - searchStr.length, searchStr.length) === searchStr;
+                    return this.substring(endPos - searchStr.length, endPos) === searchStr;
                 };
             }
 
