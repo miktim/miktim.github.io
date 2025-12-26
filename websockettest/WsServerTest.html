@@ -11,6 +11,13 @@
     <body>
         <div>WsServer test<br><br></div>
         <script>
+            function show(msg) {
+                var div = document.getElementsByTagName("div")[0];
+                div.innerHTML += msg + '<br>';
+                div.scrollIntoView(false);
+//                        .insertAdjacentHTML('beforeend', msg + '<br>');
+            }
+            show('Browser: ' + navigator.userAgent + '<br>');
             var supportsWebSockets = 'WebSocket' in window || 'MozWebSocket' in window;
             if (!supportsWebSockets) {
                 alert('WebSocket is not supported!\r\n\nUser agent: '
@@ -20,14 +27,13 @@
         <!-- When loading the script, the server should return error 1002 (protocol error) -->
         <script src="http://localhost:8080/this_request_must_fail.js"></script>
         <script>
-            if('MozWebSocket' in window) window.WebSocket = MozWebSocket;
+//            if('MozWebSocket' in window) window.WebSocket = MozWebSocket;
             if (!('endsWith' in String)) {
                 String.prototype.endsWith = function (searchStr, endPos) {
                     endPos = endPos || this.length;
                     return this.substring(endPos - searchStr.length, endPos) === searchStr;
                 };
             }
-
 // see MDN: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
             var testuri = 'ws://localhost:8080/test/';
             var msg = 'Hello, Server! Привет, Сервер! ';
@@ -49,22 +55,18 @@
             } catch (e) {
                 show('Exception: ' + e.code + ' ' + e.message);
             }
-            function show(msg) {
-                var div = document.getElementsByTagName("div")[0];
-                div.innerHTML += msg + '<br>';
-                div.scrollIntoView(false);
-//                        .insertAdjacentHTML('beforeend', msg + '<br>');
-            }
             function connectWs(uri) {
                 if (testNo < tests.length)
                     show('Test' + testNo + ': ' + tests[testNo]
                             + " Requested subprotocols: " + subProtocols);
                 webSocket = new WebSocket(uri, subProtocols);
+
                 webSocket.onopen = function (event) {
 // WebSocket: .url .readyState .bufferedAmount .binaryType             
                     show('onopen: ' + event.target.url + " Handshaked subprotocol: " + webSocket.protocol);
                     event.target.send(msg);
                 };
+                
                 webSocket.onmessage = function (event) {
 // event: .data .origin .lastEventId .source .ports
 
@@ -87,10 +89,12 @@
                         event.target.send(event.data);
                     }
                 };
+                
                 webSocket.onerror = function (event) {
 // event:                    
                     show('onerror: no error info. WebSocket.bufferedAmount: ' + event.target.bufferedAmount);
                 };
+                
                 webSocket.onclose = function (event) {
 // event: .code .reason .wasClean
 // see MDN: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent
